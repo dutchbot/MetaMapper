@@ -24,17 +24,17 @@ def main():
      
     destination = input("Give a destination for the ordered folders..\n")
 
-    year = ''
+    answer = ''
 
     result = 0
 
-    result,year = get_sorting_option("Order by year? y/n \n",2)
+    result, answer = get_sorting_option("Order by year? y/n \n", 2)
 
-    result,year = get_sorting_option("Order by year and month? y/n \n",1,year,result)
+    result, answer = get_sorting_option("Order by year and month? y/n \n", 1, answer, result)
 
-    result,year = get_sorting_option("Order by year,month and day? y/n \n",0,year,result)
+    result, answer = get_sorting_option("Order by year,month and day? y/n \n", 0, answer, result)
 
-    mode, year = get_sorting_option("Recursively ? y/n \n",'r')
+    mode, answer = get_sorting_option("Recursively ? y/n \n",'r')
 
     execute(folder,destination,result, mode)
 
@@ -44,32 +44,34 @@ def get_sorting_option(question,res,prev_ans= None,prev_res = None):
         if prev_ans != 'n': #stop followup
             return prev_res,'y'
     while True:  
-        year = input(question)
-        if year not in "yn":
+        answer = input(question)
+        if answer not in "yn":
             print("Enter y or n")    
             continue
-        if year == 'y':
+        if answer == 'y':
             result = res
             break
         else:
             break
-    return result,year
+    return result,answer
         
 def execute(folder, destination, sort_option, mode):
     
     if os.path.isdir(folder):
         dates = {}
         count = 0
+        count_files = 0
     
         if mode == 'r':
             for folder, subs, files in os.walk(folder):
-                print('Found jpg files ' + str(len(files)))
                 for file in files:
-                    walk_images(file, dates, folder, destination, sort_option, exif_options)
-
+                    if os.path.splitext(file)[1] == '.tif' or os.path.splitext(file)[1] == '.tiff'or os.path.splitext(file)[1] == '.jpg' or os.path.splitext(file)[1] == '.jpeg':
+                        walk_images(file, dates, folder, destination, sort_option, exif_options)
+                        count_files += 1
+            print('Found image files ' + str(count_files))
         else:
-            files = [f for f in os.listdir(folder) if os.path.splitext(f)[1] == '.jpg']
-            print('Found jpg files ' + str(len(files)))
+            files = [f for f in os.listdir(folder) if os.path.splitext(f)[1] == '.tif' or os.path.splitext(f)[1] == '.tiff' or os.path.splitext(f)[1] == '.jpg' or os.path.splitext(f)[1] == '.jpeg']
+            print('Found image files ' + str(len(files)))
             for file in files:
                 walk_images(file, dates, folder, destination, sort_option, exif_options)
         
@@ -83,7 +85,7 @@ def execute(folder, destination, sort_option, mode):
                     write_file(filename,destination+'/'+date+'/',file)
                 else:
                     write_file(filename,date+'/',file)
-        print('Processed jpg files ' + str(count))   
+        print('Processed image files ' + str(count))   
     else:
         print('Invalid folder given')
 
