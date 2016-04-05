@@ -3,7 +3,6 @@ import getopt
 import logging
 import timeit
 import os
-import copy
 from dateutil.parser import parse
 from exifread.tags import DEFAULT_STOP_TAG, FIELD_TYPES
 from exifread import process_file, exif_log, __version__
@@ -48,8 +47,6 @@ def get_sorting_option(question,res,prev_ans= None,prev_res = None):
     return result,year
         
 def execute(folder, destination, sort_option):
-
-    print(sort_option)
     
     if os.path.isdir(folder):
         files = [f for f in os.listdir(folder) if os.path.splitext(f)[1] == '.jpg']
@@ -105,7 +102,6 @@ def execute(folder, destination, sort_option):
 
             if 'Image DateTime' in tag_keys:
                 count+=1
-                print(data['Image DateTime'].printable)
                 
                 s = data['Image DateTime'].printable
                 fixed_date = s.replace(":","-",2)
@@ -137,13 +133,11 @@ def execute(folder, destination, sort_option):
             
             for filename,file in dates.get(date).items():
                 
-                print(sys.getsizeof(file))
                 if len(destination) > 0:
                     write_file(filename,destination+'/'+date+'/',file)
                 else:
                     write_file(filename,date+'/',file)
                 
-            print(str(date))
     else:
         print('Invalid folder given')
 
