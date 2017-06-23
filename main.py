@@ -1,25 +1,11 @@
+import os
 import sys
 import getopt
-import logging
-import os
-from dateutil.parser import parse
-from exifread.tags import DEFAULT_STOP_TAG, FIELD_TYPES
+import helper
+from exif_options import ExifOptions
 from exifread import process_file, exif_log, __version__
 
-logger = exif_log.get_logger()
-writes = 0
-skipped = 0
-errors = 0
-no_exif = 0
-types = [".tif", ".tiff", ".jpg", ".jpeg"]
-
-
-class exif_options:
-    detailed = False
-    stop_tag = DEFAULT_STOP_TAG
-    debug = False
-    strict = False
-    color = False
+LOGGER = exif_log.get_logger()
 
 
 def main():
@@ -42,7 +28,8 @@ def main():
 
     mode, answer = get_sorting_option("Recursively ? y/n \n", 'r')
 
-    execute(folder, destination, result, mode)
+    sort_images_to_folder = SortImagesToFolder()
+    sort_images_to_folder.execute(folder, destination, result, mode)
 
 
 def get_sorting_option(question, res, prev_ans=None, prev_res=None):
@@ -63,175 +50,129 @@ def get_sorting_option(question, res, prev_ans=None, prev_res=None):
     return result, answer
 
 
-def execute(folder, destination, sort_option, mode):
-    """ Execute the main function, limiting to known images with exif format."""
-    # Relative or absolute path
-    if os.path.isdir(folder):
-        count_files = 0
+class SortImagesToFolder:
+    """
+        Reads the exif data from files in a given folder and maps them to folders in a specified output folder.
+    """
 
-        if mode == 'r':
-            for folder, subs, files in os.walk(folder):
-                count = 0
-                if destination not in subs:
-                    for file in files:
-                        if count == 0:
-                            print(folder)
-                            count += 1
-                        if check_file_extensions(file):
-                            try:
-                                walk_images(file, folder, destination,
-                                            sort_option, exif_options)
-                            except:
-                                logger.error("error on file! : " + file)
-                                incr_error()
-                            count_files += 1
-            print('Found image files ' + str(count_files))
+    def __init__(self):
+        self.writes = 0
+        self.skipped = 0
+        self.errors = 0
+        self.no_exif = 0
+
+    def execute(self, folder, destination, sort_option, mode):
+        """ Execute the main function, limiting to known images with exif format."""
+        # Relative or absolute path
+        exif_opt = ExifOptions()
+        if os.path.isdir(folder):
+            count_files = 0
+
+            if mode == 'r':
+                for folder, subs, files in os.walk(folder):
+                    count = 0
+                    if destination not in subs:
+                        for file in files:
+                            if count == 0:
+                                print(folder)
+                                count += 1
+                            if helper.check_file_extensions(file):
+                                try:
+                                    self.walk_images(file, folder, destination,
+                                                     sort_option, exif_opt)
+                                except:
+                                    LOGGER.error("error on file! : " + file)
+                                    self.incr_errors()
+                                count_files += 1
+                print('Found image files ' + str(count_files))
+            else:
+                files = [f for f in os.listdir(folder)
+                         if helper.check_tiff_extension(file) or helper.check_jpeg_extension(file)]
+                for file in files:
+                    try:
+                        self.walk_images(file, folder, destination,
+                                         sort_option, exif_opt)
+                    except:
+                        print("error on file! : " + file)
+                        self.incr_errors()
+                    count_files += 1
+
+            print('Processed image files ' + str(count_files))
+            print('Skipped files ' + str(self.skipped))
+            print('Error files ' + str(self.errors))
+            print('Written ' + str(self.writes) + ' files')
         else:
-            files = [f for f in os.listdir(folder)
-                     if check_tiff_extension(file) or check_jpeg_extension(file)]
-            for file in files:
-                try:
-                    walk_images(file, folder, destination,
-                                sort_option, exif_options)
-                except:
-                    print("error on file! : " + file)
-                    incr_error()
-                count_files += 1
+            print('Invalid folder given')
 
-        print('Processed image files ' + str(count_files))
-        print('Skipped files ' + str(skipped))
-        print('Error files ' + str(errors))
-        print('Written ' + str(writes) + ' files')
-    else:
-        print('Invalid folder given')
+    def walk_images(self, filename, folder, destination, sort_option, exif_options):
 
+        img_file = open(str(folder + '/' + filename), 'rb')
+        img_orig_writeback = open(str(folder + '/' + filename), 'rb')
 
-def check_file_extensions(file):
-    """ Check for files which may hold exif data """
-    if check_tiff_extension(file):
-        return True
-    elif check_jpeg_extension(file):
-        return True
-    return False
+        img_file_orig = img_orig_writeback.read()
+        img_orig_writeback.close()
 
+        try:
+            # this process removes bytes, second buffer is a fix for this
+            data = process_file(img_file)
+        except UnicodeDecodeError:
+            raise
 
-def check_tiff_extension(file):
-    """ Check tiff ext """
-    if get_file_ext(file) == types[0] or get_file_ext(file) == types[1]:
-        return True
-    return False
+        if not data:
+            print(data)
+            self.incr_skipped()
+            return
 
+        # removes the image thumbnail data (we dont need it)
+        if 'JPEGThumbnail' in data:
+            LOGGER.info('File has JPEG thumbnail')
+            del data['JPEGThumbnail']
+        if 'TIFFThumbnail' in data:
+            LOGGER.info('File has TIFF thumbnail')
+            del data['TIFFThumbnail']
 
-def check_jpeg_extension(file):
-    """ Check jpeg ext """
-    if get_file_ext(file) == types[2] or get_file_ext(file) == types[3]:
-        return True
-    return False
+        tag_keys = list(data.keys())
+        tag_keys.sort()
 
+        exif_date_fields = ['Image DateTime',
+                            'EXIF DateTimeDigitized', 'EXIF DateTimeOriginal']
 
-def get_file_ext(file):
-    """ Return the file extension """
-    return os.path.splitext(file)[1]
+        if exif_date_fields[0] in tag_keys:
+            date = helper.get_date_format(
+                data, sort_option, exif_date_fields[0])
+            self.write_image_to_folder(
+                filename, destination, date, img_file_orig)
+        elif exif_date_fields[1] in tag_keys:
+            date = helper.get_date_format(
+                data, sort_option, exif_date_fields[1])
+            self.write_image_to_folder(
+                filename, destination, date, img_file_orig)
+        elif exif_date_fields[2] in tag_keys:
+            date = helper.get_date_format(
+                data, sort_option, exif_date_fields[2])
+            self.write_image_to_folder(
+                filename, destination, date, img_file_orig)
+        else:
+            self.incr_skipped()
 
+    def write_image_to_folder(self, filename, destination, date, img_file_orig):
+        """ Writes image to given destination folder """
+        if len(destination) > 0:
+            helper.write_file(filename, destination + '/' +
+                              date + '/', img_file_orig)
+            self.incr_writes()
+        else:
+            helper.write_file(filename, date + '/', img_file_orig)
+            self.incr_writes()
 
-def walk_images(filename, folder, destination, sort_option, exif_options):
+    def incr_errors(self):
+        self.errors += 1
 
-    img_file = open(str(folder + '/' + filename), 'rb')
-    # i dont like it but easiest fix
-    img_orig_writeback = open(str(folder + '/' + filename), 'rb')
+    def incr_skipped(self):
+        self.skipped += 1
 
-    img_file_orig = img_orig_writeback.read()
-    img_orig_writeback.close()
-
-    try:
-        # this process removes bytes, second buffer is a fix for this
-        data = process_file(img_file)
-    except UnicodeDecodeError:
-        raise
-
-    if not data:
-        print(data)
-        incr_skipped()
-        return
-
-    # removes the image thumbnail data (we dont need it)
-    if 'JPEGThumbnail' in data:
-        logger.info('File has JPEG thumbnail')
-        del data['JPEGThumbnail']
-    if 'TIFFThumbnail' in data:
-        logger.info('File has TIFF thumbnail')
-        del data['TIFFThumbnail']
-
-    tag_keys = list(data.keys())
-    tag_keys.sort()
-
-    exif_date_fields = ['Image DateTime',
-                        'EXIF DateTimeDigitized', 'EXIF DateTimeOriginal']
-
-    if exif_date_fields[0] in tag_keys:
-        date = get_date_format(data, sort_option, exif_date_fields[0])
-        write_image_to_folder(filename, destination, date, img_file_orig)
-    elif exif_date_fields[1] in tag_keys:
-        date = get_date_format(data, sort_option, exif_date_fields[1])
-        write_image_to_folder(filename, destination, date, img_file_orig)
-    elif exif_date_fields[2] in tag_keys:
-        date = get_date_format(data, sort_option, exif_date_fields[2])
-        write_image_to_folder(filename, destination, date, img_file_orig)
-    else:
-        incr_skipped()
-       # print("Skipped " + filename + "\n")
-
-
-def write_image_to_folder(filename, destination, date, img_file_orig):
-    """ Writes image to given destination folder """
-    if len(destination) > 0:
-        write_file(filename, destination + '/' + date + '/', img_file_orig)
-        incr_writes()
-    else:
-        write_file(filename, date + '/', img_file_orig)
-        incr_writes()
-
-
-def incr_writes():
-    global writes
-    writes += 1
-
-
-def incr_skipped():
-    global skipped
-    skipped += 1
-
-
-def incr_error():
-    global errors
-    errors += 1
-
-
-def get_date_format(data, sort_option, field):
-    s = data[field].printable
-    fixed_date = s.replace(":", "-", 2)
-
-    date = str(parse(fixed_date).date())
-    if sort_option == 1:  # year and month
-        date = date[:-3]
-    elif sort_option == 2:  # year
-        date = date[:-6]
-
-    return date
-
-
-def make_sure_path_exists(path):
-    try:
-        os.makedirs(path)
-    except FileExistsError:
-        pass
-
-
-def write_file(filename, path, data):
-    make_sure_path_exists(path)
-    f = open(path + filename, "wb")
-    f.write(data)
-    f.close()
+    def incr_writes(self):
+        self.writes += 1
 
 if __name__ == '__main__':
     main()
