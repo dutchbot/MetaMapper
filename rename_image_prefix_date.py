@@ -14,6 +14,6 @@ class RenameImagePrefixDate(ImageProcessor):
 
         key = helper.get_existing_exif_key(tag_keys)
         ext = file_info.filename.split('.')[1]
-        filename = helper.create_filename_for_file(data, sort_option, ext, key)
+        filename = helper.create_filename_for_file(sort_option, ext, data[key].printable)
 
         helper.write_file(filename, file_info.destination+"/", img_file_orig)

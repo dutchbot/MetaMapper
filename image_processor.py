@@ -8,6 +8,7 @@ from exifread import process_file, exif_log, __version__
 
 LOGGER = exif_log.get_logger()
 
+
 class ImageProcessor:
 
     def __init__(self):
@@ -34,7 +35,7 @@ class ImageProcessor:
                             if helper.check_file_extensions(file_name):
                                 try:
                                     self.process_image(
-                                        FileInfo(file_name, folder, destination), sort_option, exif_opt)
+                                        FileInfo(file_name, folder, destination), sort_option)
                                 except:
                                     LOGGER.error(
                                         "error on file! : " + file_name)
@@ -47,7 +48,7 @@ class ImageProcessor:
                 for file_name in files:
                     try:
                         self.process_image(
-                            FileInfo(file_name, folder, destination), sort_option, exif_opt)
+                            FileInfo(file_name, folder, destination), sort_option)
                     except:
                         print("error on file! : " + file_name)
                         self.incr_errors()
@@ -60,7 +61,7 @@ class ImageProcessor:
         else:
             print('Invalid folder given')
 
-    def process_image(self, file_info, sort_option, exif_options):
+    def process_image(self, file_info, sort_option):
         """
             Read the image exif contents and write it somewhere.
         """
@@ -80,7 +81,7 @@ class ImageProcessor:
             raise
 
         if not data:
-            #print(data)
+            # print(data)
             self.incr_skipped()
             return
 

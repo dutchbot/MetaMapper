@@ -28,8 +28,7 @@ def get_existing_exif_key(tag_keys):
         return exif_date_fields[2]
 
 
-def create_filename_for_file(data, sort_option, ext, key):
-    date_string = data[key].printable
+def create_filename_for_file(sort_option, ext, date_string):
     dates = date_string.split()
     filename = sort_option['prefix'] + "_"
     filename += dates[0].replace(":", "", 2)
@@ -51,6 +50,12 @@ def write_file(filename, path, data):
     file_buffer = open(path + filename, "wb")
     file_buffer.write(data)
     file_buffer.close()
+
+
+def check_extension(filename, ext):
+    if get_file_ext(filename) == ext:
+        return True
+    return False
 
 
 def check_file_extensions(file):

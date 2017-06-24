@@ -1,4 +1,5 @@
 import argparse
+from video_processor import VideoProcessor
 from rename_image_prefix_date import RenameImagePrefixDate
 from sort_images_to_folder import SortImagesToFolder
 
@@ -8,13 +9,19 @@ def main():
     args = parse_arguments()
 
     if args.mode == 'r':
-        rename_image_prefix_date = RenameImagePrefixDate()
-        print(args.prefix)
-        print(args.output_path)
-        sort_option = {'prefix': args.prefix, 'date_format': 0}
-        rename_image_prefix_date.walk_images(
-            args.input_path, args.output_path, sort_option, 'r')
-    else:
+        if args.video:
+            video_processor = VideoProcessor()
+            sort_option = {'prefix': 'VIDEO', 'date_format': 0}
+            video_processor.scan_files(
+                args.input_path, args.output_path, sort_option, 'r')
+        else:
+            rename_image_prefix_date = RenameImagePrefixDate()
+            print(args.prefix)
+            print(args.output_path)
+            sort_option = {'prefix': args.prefix, 'date_format': 0}
+            rename_image_prefix_date.walk_images(
+                args.input_path, args.output_path, sort_option, 'r')
+    elif args.mode == 's':
         folder = input("Give a folder containing images..\n")
 
         destination = input("Give a destination for the ordered folders..\n")
@@ -46,8 +53,11 @@ def parse_arguments():
                         help='the path to read input from, defaults to current folder')
     parser.add_argument('-mode', dest="mode", action="store", default="s",
                         help=" 's' => Sort, 'r' => Rename, default = Sort")
+    parser.add_argument('--video', dest="video", action="store_true", default="false",
+                        help="Looks at modified time of video file")
     parser.add_argument('--prefix', action="store",
-                        dest="prefix", default="IMAGE", help='Default prefix is IMAGE e.g PREFIX_DATE -> IMAGE_20160111')
+                        dest="prefix", default="IMAGE", help='Default prefix is IMAGE or VIDEO if --video is given'
+                        '\n e.g PREFIX_DATE -> IMAGE_20160111')
     parser.add_argument('--verbose', action="store_true",
                         dest="verbose", help='Display all actions')
     args = parser.parse_args()
